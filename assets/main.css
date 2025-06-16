@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/* assets/main.css */
+html,
+body {
+  margin: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  color: white;
+  background-color: black;
+  font-size: 14px;
+}
+canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+#reduced-motion-toggle {
+  position: absolute;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 4px 10px 4px 6px;
+  display: flex;
+  align-items: center;
+  top: 10px; /* Adjust position as needed */
+  left: 10px; /* Adjust position as needed */
+}
+#reduced-motion-toggle input {
+  margin-right: 4px;
+}
