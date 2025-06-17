@@ -35,6 +35,7 @@ const createKonvaLayer = () => {
   });
   const layer = new Konva.Layer();
   stage.add(layer);
+
   return { stage, layer };
 };
 
@@ -52,8 +53,8 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
     width: cardWidth,
     height: cardHeight,
     fill: 'rgba(0,0,0,0)', // Transparent background
-    stroke: 'rgba(255, 255, 255, 0.05)', // Subtle white stroke
-    strokeWidth: 0.3
+    stroke: 'rgba(60, 60, 60, 1)', // Subtle white stroke
+    strokeWidth: 1
   });
   layer.add(foregroundRect);
 

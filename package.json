@@ -10,8 +10,7 @@
     "prepare": "nuxt prepare"
   },
   "dependencies": {
-    "@nuxt/eslint": "1.4.1",
-    "@nuxt/icon": "1.13.0",
+    "@nuxt/eslint": "^1.4.1",
     "@tailwindcss/vite": "^4.1.9",
     "@tresjs/cientos": "^4.3.1",
     "@tresjs/nuxt": "^4.0.0",
@@ -23,13 +22,10 @@
     "nuxt": "^3.17.5",
     "tailwindcss": "^4.1.9",
     "three": "^0.177.0",
-    "typescript": "^5.8.3",
     "vue": "^3.5.16",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@types/three": "^0.177.0",
-    "vite-plugin-glsl": "^1.4.2",
-    "vue-tsc": "^2.2.10"
+    "@types/three": "^0.177.0"
   }
 }

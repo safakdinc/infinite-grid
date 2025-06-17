@@ -137,15 +137,4 @@ const cardData = [
     date: 'Dec 20, 2023'
   }
 ];
-
-const config: GalleryConfig = {
-  cellSize: 0.75,
-  zoomLevel: 1.25,
-  lerpFactor: 0.075,
-  backgroundColor: 'rgba(255,255,255,0.15)',
-  borderColor: 'rgba(255,255,255,0.15)',
-  textColor: 'rgba(128,128,128,1)',
-  hoverColor: 'rgba(255,255,255,0)',
-  dragSensitivity: 1000
-};
 </script>

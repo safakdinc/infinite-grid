@@ -6,7 +6,7 @@ body {
   margin: 0;
   font-family: Helvetica, Arial, sans-serif;
   color: white;
-  background-color: black;
+  background-color: #090909;
   font-size: 14px;
 }
 canvas {
