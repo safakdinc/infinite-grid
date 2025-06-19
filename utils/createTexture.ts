@@ -10,9 +10,7 @@ interface CardData {
   description: string;
   tags: string[];
   date: string;
-  color1: string; // Background color for the Konva card
-  color2: string; // Not directly used in current background fill logic
-  imageUrl?: string;
+  image?: string;
 }
 
 // Dummy container for Konva Stage (required by Konva, but not attached to DOM)
@@ -76,7 +74,7 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
   let headerHeight = titleText.height();
 
   // Badge (if present)
-  if (data.badge) {
+  /*   if (data.badge) {
     const badgeTextNode = new Konva.Text({
       text: data.badge.toUpperCase(),
       fontSize: 24,
@@ -108,12 +106,12 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
     layer.add(badgeRect);
     layer.add(badgeTextNode);
   } else {
-    titleText.width(titleMaxWidth); // Apply full width if no badge
-  }
+    titleText.width(titleMaxWidth); 
+  } */
 
   layer.add(titleText);
 
-  currentY += headerHeight + 15; // Move Y cursor down
+  currentY += headerHeight + 30; // Move Y cursor down
 
   const topElementsMaxY = currentY;
   const bottomReservedSpace = 100;
@@ -123,7 +121,7 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
   // Image Loading and Placement
   const imageObj = new Image();
   imageObj.crossOrigin = 'Anonymous';
-  imageObj.src = data.imageUrl || '/photo.png'; // Fallback image
+  imageObj.src = data.image || '/photo.png'; // Fallback image
 
   const loadImagePromise = new Promise<void>(imgResolve => {
     imageObj.onload = () => {
@@ -180,7 +178,7 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
 
   // Tags
   let currentXForTags = padding;
-  const tagFontSize = 18;
+  const tagFontSize = 16;
   const tagPaddingX = 15;
   const tagPaddingY = 8;
   const tagGap = 10;
@@ -191,7 +189,7 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
       text: `#${tagText.toUpperCase()}`,
       fontSize: tagFontSize,
       fontFamily: 'Helvetica, Arial, sans-serif',
-      fill: 'black',
+      fill: 'white',
       padding: tagPaddingY / 2
     });
     const tagShape = new Konva.Rect({
@@ -199,8 +197,9 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
       y: tagsY,
       width: tagLabel.width() + tagPaddingX,
       height: tagLabel.height() + tagPaddingY,
-      fill: 'rgba(255, 255, 255, 1)', // White background for tags
-      cornerRadius: 5
+
+      fill: 'rgba(248,250, 252, 0.15)', // White background for tags
+      cornerRadius: 999
     });
     layer.add(tagShape);
     tagLabel.x(tagShape.x() + (tagShape.width() - tagLabel.width()) / 2);
@@ -249,7 +248,7 @@ export async function generateBackgroundTexture(data: CardData): Promise<CanvasT
 
   const backgroundImageObj = new Image();
   backgroundImageObj.crossOrigin = 'Anonymous';
-  backgroundImageObj.src = data.imageUrl || '/photo.png'; // Use same image for background
+  backgroundImageObj.src = data.image || '/photo.png'; // Use same image for background
 
   const loadBackgroundImagePromise = new Promise<void>(imgResolve => {
     backgroundImageObj.onload = () => {

@@ -39,8 +39,8 @@
 
 <script setup lang="ts">
 import { TresCanvas } from '@tresjs/core';
-import { useDevicePixelRatio, useWindowSize, usePreferredReducedMotion, useMediaQuery } from '@vueuse/core';
-import { CanvasTexture, Mesh, Object3D, UniformsUtils, ShaderMaterial } from 'three';
+import { useWindowSize } from '@vueuse/core';
+import { CanvasTexture, Mesh, Object3D, ShaderMaterial } from 'three';
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRenderLoop, type TresObject } from '@tresjs/core';
 import gsap from 'gsap';
@@ -118,7 +118,7 @@ interface CardTextureSet {
 }
 
 const cardTextures = ref<CardTextureSet[]>([]);
-const currentHoveredTileKey = ref<string | null>(null);
+const currentHoveredTileKey = ref<string>('');
 
 // Store static uniforms to prevent re-creation
 const staticUniforms = ref<Map<string, any>>(new Map());
@@ -131,15 +131,6 @@ const hoverEase = 'power2.out';
 const aspectRatio = computed(() => width.value / height.value);
 const cameraZ = ref(mergedOptions.value.baseCameraZ);
 const targetCameraZ = ref(mergedOptions.value.baseCameraZ);
-
-// Scroll system
-const scroll = reactive({
-  ease: 1.2,
-  scale: 0.012,
-  current: { x: 0, y: 0 },
-  target: { x: 0, y: 0 }, // Target is no longer directly used for lerping scroll.current with GSAP
-  last: { x: 0, y: 0 }
-});
 
 // Direction tracking
 const direction = reactive({ x: 1, y: 1 }); // X: 1 for right, -1 for left; Y: 1 for down, -1 for up
@@ -185,7 +176,6 @@ function initializeTileGroups() {
       });
     }
   }
-  console.log('Tile groups initialized:', groups);
   tileGroups.value = groups;
 }
 
@@ -203,11 +193,6 @@ const hoverDebounceTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 const initialBackgroundOpacity = 0.0;
 const hoveredBackgroundOpacity = 1.0;
 
-// Helper functions
-function lerp(start: number, end: number, amount: number): number {
-  return start * (1 - amount) + end * amount;
-}
-
 function setGroupRef(el: any, index: number) {
   if (el) {
     groupRefs.value[index] = el;
@@ -221,7 +206,6 @@ function setForegroundMeshRef(el: any, key: string) {
 }
 
 function setBackgroundMeshRef(el: any, key: string) {
-  console.log('aaaaaa');
   if (el) {
     const meshInstance = el as Mesh;
     backgroundMeshRefs.value.set(key, meshInstance);
@@ -286,10 +270,35 @@ function getStaticBackgroundUniforms(groupIndex: number, tileIndex: number) {
   return uniforms;
 }
 
+const scroll = reactive({
+  scale: 0.012,
+  current: { x: 0, y: 0 },
+  last: { x: 0, y: 0 }
+});
+
+const scrollTracker = InertiaPlugin.track(scroll.current, 'x,y')[0];
+
 // Position update logic - MODIFIED to use group.offset and directly update groupObject.position
 function updatePositions() {
   const scrollX = scroll.current.x;
   const scrollY = scroll.current.y;
+
+  // Update the direction based on current movement
+  if (scroll.current.y > scroll.last.y) {
+    direction.y = -1; // Moving up (decreasing Y in world space)
+  } else if (scroll.current.y < scroll.last.y) {
+    direction.y = 1; // Moving down (increasing Y in world space)
+  } else {
+    direction.y = 0; // Not moving vertically
+  }
+
+  if (scroll.current.x > scroll.last.x) {
+    direction.x = -1; // Moving left (decreasing X in world space)
+  } else if (scroll.current.x < scroll.last.x) {
+    direction.x = 1; // Moving right (increasing X in world space)
+  } else {
+    direction.x = 0; // Not moving horizontally
+  }
 
   tileGroups.value.forEach((group, i) => {
     const groupObject = groupRefs.value[i]; // Get the actual Three.js Object3D
@@ -334,7 +343,27 @@ function updatePositions() {
   });
 }
 
-// Mouse/Touch event handlers
+function onPointerMove(e: MouseEvent | TouchEvent) {
+  if (!isDown.value) return;
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+  const distanceX = (startPosition.x - clientX) * scroll.scale;
+  const distanceY = (startPosition.y - clientY) * scroll.scale;
+
+  gsap.to(scroll.current, {
+    x: scrollPosition.x - distanceX,
+    y: scrollPosition.y + distanceY,
+    duration: 0.1, // Animation duration
+    ease: 'power1.out',
+    overwrite: true,
+    onUpdate: updatePositions // Call updatePositions on each GSAP tick
+  });
+
+  scroll.last.x = scroll.current.x;
+  scroll.last.y = scroll.current.y;
+}
+
 function onPointerDown(e: MouseEvent | TouchEvent) {
   currentHoveredTileKey.value = null;
   isDown.value = true;
@@ -356,95 +385,41 @@ function onPointerDown(e: MouseEvent | TouchEvent) {
   });
 }
 
-function onPointerMove(e: MouseEvent | TouchEvent) {
-  if (!isDown.value) return;
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-  const distanceX = (startPosition.x - clientX) * scroll.scale;
-  const distanceY = (startPosition.y - clientY) * scroll.scale;
-
-  // Update the direction based on current movement
-  if (scroll.current.y > scroll.last.y) {
-    direction.y = -1; // Moving up (decreasing Y in world space)
-  } else if (scroll.current.y < scroll.last.y) {
-    direction.y = 1; // Moving down (increasing Y in world space)
-  } else {
-    direction.y = 0; // Not moving vertically
-  }
-
-  if (scroll.current.x > scroll.last.x) {
-    direction.x = -1; // Moving left (decreasing X in world space)
-  } else if (scroll.current.x < scroll.last.x) {
-    direction.x = 1; // Moving right (increasing X in world space)
-  } else {
-    direction.x = 0; // Not moving horizontally
-  }
-
-  gsap.to(scroll.current, {
-    x: scrollPosition.x - distanceX,
-    y: scrollPosition.y + distanceY,
-    duration: 0.1, // Animation duration
-    ease: 'power1.out',
-    overwrite: true,
-    onUpdate: updatePositions // Call updatePositions on each GSAP tick
-  });
-
-  scroll.last.x = scroll.current.x;
-  scroll.last.y = scroll.current.y;
-}
-
 function onPointerUp() {
   isDown.value = false;
-  // Reset direction when interaction ends
-  direction.x = 0;
-  direction.y = 0;
+
   gsap.to(cameraRef.value?.position, {
     z: mergedOptions.value.baseCameraZ,
     duration: 0.3,
     ease: 'power2.out',
     overwrite: true
   });
+
+  // Get the current velocities from the tracker
+  const vx = scrollTracker.get('x');
+  const vy = scrollTracker.get('y');
+
+  // Call the inertia animation
+  animateInertiaScroll(vx, vy);
 }
 
-function onWheel(e: WheelEvent) {
-  e.preventDefault();
-  isScrolling.value = true;
-
-  // Update direction based on wheel delta
-  if (e.deltaY > 0) {
-    direction.y = 1; // Scrolling down
-  } else if (e.deltaY < 0) {
-    direction.y = -1; // Scrolling up
-  } else {
-    direction.y = 0;
-  }
-
-  if (e.deltaX > 0) {
-    direction.x = 1; // Scrolling right
-  } else if (e.deltaX < 0) {
-    direction.x = -1; // Scrolling left
-  } else {
-    direction.x = 0;
-  }
-
+function animateInertiaScroll(vx: number | 'auto' = 'auto', vy: number | 'auto' = 'auto') {
   gsap.to(scroll.current, {
-    x: scroll.current.x - e.deltaX * scroll.scale,
-    y: scroll.current.y + e.deltaY * scroll.scale,
-    duration: 0.1,
-    ease: 'power1.out',
-    overwrite: true
+    inertia: {
+      x: vx,
+      y: vy,
+      min: 60,
+      resistance: 100
+    },
+    ease: 'power2.out', // Adjust ease as desired
+    onUpdate: updatePositions, // Crucial: Keep updating positions during inertia
+    onComplete: () => {
+      direction.x = 0; // Reset direction when inertia finishes
+      direction.y = 0;
+    }
   });
-
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
-  }
-  scrollTimeout.value = setTimeout(() => {
-    isScrolling.value = false;
-    direction.x = 0; // Reset direction after scroll stops
-    direction.y = 0;
-  }, 150);
 }
+
 // Hover event handlers
 function handleTilePointerEnter(groupIndex: number, tileIndex: number) {
   if (isDown.value) return;
@@ -461,7 +436,29 @@ function handleTilePointerLeave(groupIndex: number, tileIndex: number) {
 
   const leavingTileKey = getTileKey(groupIndex, tileIndex);
   if (currentHoveredTileKey.value === leavingTileKey) {
-    currentHoveredTileKey.value = null;
+    currentHoveredTileKey.value = '';
+  }
+}
+
+function fadeInBackground(mesh: Mesh) {
+  if (mesh.material instanceof ShaderMaterial && mesh.material.uniforms && mesh.material.uniforms.uOpacity) {
+    gsap.to(mesh.material.uniforms.uOpacity, {
+      value: hoveredBackgroundOpacity,
+      duration: hoverTransitionDuration,
+      ease: hoverEase,
+      overwrite: true
+    });
+  }
+}
+
+function fadeOutBackground(mesh: Mesh) {
+  if (mesh.material instanceof ShaderMaterial && mesh.material.uniforms && mesh.material.uniforms.uOpacity) {
+    gsap.to(mesh.material.uniforms.uOpacity, {
+      value: initialBackgroundOpacity,
+      duration: hoverTransitionDuration,
+      ease: hoverEase,
+      overwrite: true
+    });
   }
 }
 
@@ -469,27 +466,13 @@ watch(currentHoveredTileKey, (newTileKey, oldTileKey) => {
   // Animate out the old tile
   if (oldTileKey) {
     const oldMesh = backgroundMeshRefs.value.get(oldTileKey);
-    if (oldMesh && oldMesh.material instanceof ShaderMaterial && oldMesh.material.uniforms && oldMesh.material.uniforms.uOpacity) {
-      gsap.to(oldMesh.material.uniforms.uOpacity, {
-        value: initialBackgroundOpacity,
-        duration: hoverTransitionDuration,
-        ease: hoverEase,
-        overwrite: true
-      });
-    }
+    fadeOutBackground(oldMesh);
   }
 
   // Animate in the new tile
   if (newTileKey) {
     const newMesh = backgroundMeshRefs.value.get(newTileKey);
-    if (newMesh && newMesh.material instanceof ShaderMaterial && newMesh.material.uniforms && newMesh.material.uniforms.uOpacity) {
-      gsap.to(newMesh.material.uniforms.uOpacity, {
-        value: hoveredBackgroundOpacity,
-        duration: hoverTransitionDuration,
-        ease: hoverEase,
-        overwrite: true
-      });
-    }
+    fadeInBackground(newMesh);
   }
 });
 
@@ -497,13 +480,6 @@ function handleTileClick(groupIndex: number, tileIndex: number) {
   if (isScrolling.value || isDown.value) return;
   console.log(`Tile Clicked: Group ${groupIndex}, Tile ${tileIndex}`);
 }
-
-// Animation loop
-onLoop(() => {
-  // updatePositions is now called via GSAP's onUpdate callback.
-  // This onLoop can be used for other per-frame updates.
-  updatePositions();
-});
 
 // Texture generation
 async function generateTexturesForCardData(data: CardData[]) {
@@ -530,8 +506,8 @@ onMounted(async () => {
 
   initializeTileGroups();
   await generateTexturesForCardData(props.cardData);
+  updatePositions();
 
-  window.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('mousedown', onPointerDown);
   window.addEventListener('mousemove', onPointerMove);
   window.addEventListener('mouseup', onPointerUp);
@@ -541,7 +517,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('wheel', onWheel);
   window.removeEventListener('mousedown', onPointerDown);
   window.removeEventListener('mousemove', onPointerMove);
   window.removeEventListener('mouseup', onPointerUp);
@@ -573,7 +548,6 @@ watch(
 
     // Reset scroll and camera
     scroll.current = { x: 0, y: 0 };
-    scroll.target = { x: 0, y: 0 };
     scroll.last = { x: 0, y: 0 };
     cameraZ.value = mergedOptions.value.baseCameraZ;
     targetCameraZ.value = mergedOptions.value.baseCameraZ;
@@ -628,9 +602,6 @@ watch(
   backdrop-filter: blur(8px); /* Adjust blur amount as needed */
   -webkit-backdrop-filter: blur(8px); /* For Safari support */
   pointer-events: none;
-
-  /* Apply the same gradient as a mask to the blur-overlay */
-  /* This effectively "shows" the blur only where the gradient is not transparent */
   mask-image: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0.8) 90%, rgba(0, 0, 0, 1) 100%);
   -webkit-mask-image: radial-gradient(
     ellipse at center,

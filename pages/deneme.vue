@@ -1,7 +1,6 @@
 <template>
   <TresCanvas window-size>
     <TresPerspectiveCamera ref="camera" />
-    <OrbitControls />
     <TresMesh :ref="el => setMeshRef(el)">
       <TresTorusGeometry :args="[1, 0.5, 16, 32]" />
       <TresMeshBasicMaterial color="orange" />
@@ -15,8 +14,6 @@ import gsap from 'gsap';
 
 const meshes = ref<THREE.Mesh[]>([]);
 
-const cameraZ = ref(5);
-
 const camera = ref<THREE.PerspectiveCamera | null>(null);
 
 function setMeshRef(element: THREE.Mesh) {
@@ -26,11 +23,19 @@ function setMeshRef(element: THREE.Mesh) {
 
 onMounted(() => {
   window.addEventListener('mousedown', () => {
-    camera.value?.position.set(0, 0, 10);
+    gsap.to(camera.value?.position, {
+      z: 10,
+      duration: 0.5,
+      ease: 'power2.out'
+    });
   });
 
   window.addEventListener('mouseup', () => {
-    camera.value?.position.set(0, 0, cameraZ.value);
+    gsap.to(camera.value?.position, {
+      z: 2,
+      duration: 0.5,
+      ease: 'power2.out'
+    });
   });
 });
 </script>
