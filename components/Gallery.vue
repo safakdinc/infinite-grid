@@ -1,5 +1,6 @@
 <template>
-  <div class="infinite-grid-container">
+  <LoadingScreen :start="startPostProcessing"></LoadingScreen>
+  <div v-if="startPostProcessing" class="infinite-grid-container">
     <div class="vignette-overlay"></div>
     <div class="blur-overlay"></div>
     <TresCanvas v-bind="gl" ref="canvasRef" :outputColorSpace="'srgb'">
@@ -30,9 +31,7 @@
         </TresGroup>
       </TresGroup>
 
-      <Suspense>
-        <FishEye></FishEye>
-      </Suspense>
+      <FishEye v-if="startPostProcessing"></FishEye>
     </TresCanvas>
   </div>
 </template>
@@ -67,6 +66,7 @@ interface Options {
   gridGap?: number;
   tileSize?: number;
   baseCameraZ?: number;
+  container?: HTMLElement | null;
 }
 
 interface Props {
@@ -79,7 +79,8 @@ const defaultOptions: Required<Options> = {
   gridRows: 3,
   gridGap: 0,
   tileSize: 3,
-  baseCameraZ: 10
+  baseCameraZ: 10,
+  container: null
 };
 
 const props = withDefaults(defineProps<Props>(), {
@@ -365,7 +366,7 @@ function onPointerMove(e: MouseEvent | TouchEvent) {
 }
 
 function onPointerDown(e: MouseEvent | TouchEvent) {
-  currentHoveredTileKey.value = null;
+  currentHoveredTileKey.value = '';
   isDown.value = true;
   // Capture the current scroll values to calculate relative movement
   scrollPosition.x = scroll.current.x;
@@ -499,6 +500,8 @@ async function generateTexturesForCardData(data: CardData[]) {
   cardTextures.value = loadedTextures;
 }
 
+const startPostProcessing = ref(false);
+
 // Lifecycle hooks
 onMounted(async () => {
   cameraZ.value = mergedOptions.value.baseCameraZ;
@@ -506,42 +509,23 @@ onMounted(async () => {
 
   initializeTileGroups();
   await generateTexturesForCardData(props.cardData);
+  startPostProcessing.value = true;
   updatePositions();
+  animateInertiaScroll();
 
-  window.addEventListener('mousedown', onPointerDown);
-  window.addEventListener('mousemove', onPointerMove);
-  window.addEventListener('mouseup', onPointerUp);
-  window.addEventListener('touchstart', onPointerDown, { passive: true });
-  window.addEventListener('touchmove', onPointerMove, { passive: true });
-  window.addEventListener('touchend', onPointerUp, { passive: true });
-});
+  const container = props.options.container || window;
+  console.log(container);
 
-onUnmounted(() => {
-  window.removeEventListener('mousedown', onPointerDown);
-  window.removeEventListener('mousemove', onPointerMove);
-  window.removeEventListener('mouseup', onPointerUp);
-  window.removeEventListener('touchstart', onPointerDown);
-  window.removeEventListener('touchmove', onPointerMove);
-  window.removeEventListener('touchend', onPointerUp);
-
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
-  }
-  if (hoverDebounceTimeout.value) {
-    clearTimeout(hoverDebounceTimeout.value);
-  }
-
-  cardTextures.value.forEach(set => {
-    set.foreground.dispose();
-    set.background?.dispose();
-  });
-
-  // Clear cached uniforms
-  staticUniforms.value.clear();
+  container.addEventListener('mousedown', onPointerDown);
+  container.addEventListener('mousemove', onPointerMove);
+  container.addEventListener('mouseup', onPointerUp);
+  container.addEventListener('touchstart', onPointerDown, { passive: true });
+  container.addEventListener('touchmove', onPointerMove, { passive: true });
+  container.addEventListener('touchend', onPointerUp, { passive: true });
 });
 
 // Watch for changes in cardData or options prop and regenerate textures/grid
-watch(
+/* watch(
   () => [props.cardData, props.options],
   async ([newCardData, newOptions]) => {
     await generateTexturesForCardData(newCardData as CardData[]);
@@ -561,7 +545,7 @@ watch(
     initializeTileGroups();
   },
   { deep: true }
-);
+); */
 </script>
 
 <style scoped>

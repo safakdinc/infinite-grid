@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { gsap } from 'gsap';
+import gsap from 'gsap';
 import { Environment, OrbitControls, Precipitation, RoundedBox } from '@tresjs/cientos';
 import { TresCanvas } from '@tresjs/core';
 import { EffectComposerPmndrs, FishEyePmndrs } from '@tresjs/post-processing';
@@ -12,16 +12,21 @@ const gl = {
   toneMapping: NoToneMapping
 };
 
-const lensParams = { lensSX: 1.0, lensSY: 1.0, lensFX: 0.2, lensFY: 0.2 };
-
-const tweenParams = {
-  duration: 2,
-  ease: 'elastic.out(0.85,0.3)'
-};
+const lensParams = reactive({ lensSX: 0.0, lensSY: 0.0, lensFX: 0.0, lensFY: 0.0 });
 
 const localBlendFunction = ref(BlendFunction.NORMAL);
 
-const currentIndex = ref(0);
+onMounted(() => {
+  gsap.to(lensParams, {
+    lensSX: 1.0,
+    lensSY: 1.0,
+    lensFX: 0.2,
+    lensFY: 0.2,
+    delay: 1.5,
+    duration: 1.0,
+    ease: 'easeOut.power3'
+  });
+});
 </script>
 
 <template>
@@ -30,8 +35,7 @@ const currentIndex = ref(0);
       <FishEyePmndrs
         :blendFunction="localBlendFunction"
         :lensS="[lensParams.lensSX, lensParams.lensSY]"
-        :lensF="[lensParams.lensFX, lensParams.lensFY]"
-        :scale="scale" />
+        :lensF="[lensParams.lensFX, lensParams.lensFY]" />
     </EffectComposerPmndrs>
   </Suspense>
 </template>
