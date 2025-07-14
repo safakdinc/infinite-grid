@@ -12,6 +12,8 @@
 </template>
 
 <script setup lang="ts">
+import type { CardData } from '~/components/Gallery.vue';
+
 const cardData = [
   {
     title: 'Project Alpha',
@@ -57,6 +59,7 @@ const cardData = [
     title: 'Database',
     badge: 'Optimized',
     image: '/photos/6.webp',
+    description: 'Scalable database architecture with improved performance',
     tags: ['Database', 'PostgreSQL'],
     date: '2024'
   },

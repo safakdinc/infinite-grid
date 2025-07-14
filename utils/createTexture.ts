@@ -1,115 +1,162 @@
-// src/utils/createTexture.ts
+/**
+ * @fileoverview Card Texture Generation Utilities for Three.js
+ * 
+ * This module provides utilities for generating Canvas-based textures used
+ * in the InfiniteGridClass system. Each card requires two textures:
+ * 
+ * 1. Foreground Texture: Contains the main card content (title, image, tags, date)
+ * 2. Background Texture: Contains a blurred, darkened version of the card image
+ * 
+ * The textures are generated using HTML5 Canvas 2D API and converted to
+ * Three.js CanvasTextures with proper sRGB color space configuration.
+ * 
+ * Key Features:
+ * - Automatic text truncation with ellipsis
+ * - Image loading with fallback handling
+ * - Styled tag pills with rounded corners
+ * - Responsive layout within fixed canvas dimensions
+ * - Blur effects for background textures
+ * - Proper error handling for failed image loads
+ * 
+ * @author Your Team
+ * @version 1.0.0
+ * 
+ * Usage:
+ * ```typescript
+ * import { generateForegroundTexture, generateBackgroundTexture } from './createTexture';
+ * 
+ * const cardData = {
+ *   title: "Project Title",
+ *   image: "/path/to/image.jpg",
+ *   tags: ["web", "three.js"],
+ *   date: "2024"
+ * };
+ * 
+ * const foregroundTexture = await generateForegroundTexture(cardData);
+ * const backgroundTexture = await generateBackgroundTexture(cardData);
+ * ```
+ */
 
-import Konva from 'konva';
-import { CanvasTexture } from 'three';
-import * as THREE from 'three';
+// Card Texture Generation Utilities for Three.js
 
+import * as THREE from 'three'; // Required for CanvasTexture and SRGBColorSpace
+
+/**
+ * Represents the data structure for a single card/tile
+ * This interface must match the CardData interface in InfiniteGridClass.ts
+ */
 interface CardData {
+  /** The main title text displayed prominently on the card */
   title: string;
+  /** Badge text (currently not implemented in the rendering pipeline) */
   badge: string;
-  description: string;
+  /** Detailed description text for the card content (optional) */
+  description?: string;
+  /** Array of tag strings that will be displayed as styled pills */
   tags: string[];
+  /** Date string displayed in the bottom-right corner */
   date: string;
+  /** Optional image URL - falls back to '/photo.png' if not provided */
   image?: string;
 }
 
-// Dummy container for Konva Stage (required by Konva, but not attached to DOM)
-const konvaContainer = document.createElement('div');
-konvaContainer.style.display = 'none';
-if (!document.body.contains(konvaContainer)) {
-  document.body.appendChild(konvaContainer);
-}
-
+/**
+ * Canvas dimensions for all generated textures
+ * These dimensions affect the resolution and memory usage of the textures
+ */
 const cardWidth = 512;
 const cardHeight = 512;
 const padding = 30;
 
-// Helper to create a Konva stage and layer for a new texture
-const createKonvaLayer = () => {
-  const stage = new Konva.Stage({
-    container: konvaContainer,
-    width: cardWidth,
-    height: cardHeight
-  });
-  const layer = new Konva.Layer();
-  stage.add(layer);
-
-  return { stage, layer };
+/**
+ * Creates a canvas element with 2D rendering context
+ * 
+ * This helper function ensures consistent canvas setup across all texture
+ * generation functions and provides proper error handling for context creation.
+ * 
+ * @returns Object containing the canvas element and its 2D context
+ * @throws {Error} If 2D context creation fails
+ */
+const createCanvasContext = (): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } => {
+  const canvas = document.createElement('canvas');
+  canvas.width = cardWidth;
+  canvas.height = cardHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Failed to get 2D context for canvas');
+  }
+  return { canvas, ctx };
 };
 
-//Generate Foreground Texture
+/**
+ * Generates the foreground texture for a card using Canvas 2D API
+ * 
+ * This function creates the main visible content of each card including:
+ * - Title text with automatic truncation and ellipsis
+ * - Main image with aspect ratio preservation and centering
+ * - Styled tag pills at the bottom
+ * - Date text in the bottom-right corner
+ * - Border outline around the entire card
+ * 
+ * The generated texture is used for the front-facing mesh that users
+ * can interact with (hover and click).
+ * 
+ * @param data - Card data containing title, image, tags, date, etc.
+ * @returns Promise resolving to a Three.js CanvasTexture with sRGB color space
+ * 
+ * @example
+ * ```typescript
+ * const cardData = {
+ *   title: "Amazing Project",
+ *   image: "/images/project.jpg",
+ *   tags: ["web", "three.js"],
+ *   date: "2024",
+ *   badge: "NEW",
+ *   description: "A cool project"
+ * };
+ * const texture = await generateForegroundTexture(cardData);
+ * ```
+ */
+export async function generateForegroundTexture(data: CardData): Promise<THREE.CanvasTexture> {
+  const { canvas, ctx } = createCanvasContext();
 
-//This function is responsible for drawing all the visible elements of your card, like the title, badge, image, tags, and date.
-
-export async function generateForegroundTexture(data: CardData): Promise<CanvasTexture> {
-  const { layer } = createKonvaLayer();
+  // Set default styles
+  ctx.fillStyle = 'white';
+  ctx.strokeStyle = 'rgba(60, 60, 60, 1)';
+  ctx.lineWidth = 1;
 
   // Card background and border (transparent for foreground to show background)
-  const foregroundRect = new Konva.Rect({
-    x: 0,
-    y: 0,
-    width: cardWidth,
-    height: cardHeight,
-    fill: 'rgba(0,0,0,0)', // Transparent background
-    stroke: 'rgba(60, 60, 60, 1)', // Subtle white stroke
-    strokeWidth: 1
-  });
-  layer.add(foregroundRect);
+  ctx.beginPath();
+  ctx.rect(0, 0, cardWidth, cardHeight);
+  ctx.stroke(); // Draw border
+  // ctx.fill() is not needed as background is transparent
 
   let currentY = padding;
 
   // Title Text
-  const titleText = new Konva.Text({
-    text: data.title,
-    x: padding,
-    y: currentY,
-    fontSize: 24,
-    fontFamily: 'Arial, sans-serif',
-    fill: 'white',
-    wrap: 'none',
-    ellipsis: true
-  });
+  ctx.font = '24px Arial, sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.textBaseline = 'top';
 
+  // Measure text to determine actual width
+  const titleText = data.title;
   let titleMaxWidth = cardWidth - padding * 2;
-  let headerHeight = titleText.height();
 
-  // Badge (if present)
-  /*   if (data.badge) {
-    const badgeTextNode = new Konva.Text({
-      text: data.badge.toUpperCase(),
-      fontSize: 24,
-      fontFamily: 'Arial, sans-serif',
-      fill: 'black',
-      padding: 10,
-      align: 'center',
-      verticalAlign: 'middle'
-    });
-    const badgeWidth = badgeTextNode.width() + 20; // Add padding to badge width
-    const badgeHeight = badgeTextNode.height();
-    headerHeight = Math.max(headerHeight, badgeHeight); // Ensure header height accommodates badge
+  // For `ellipsis` and `wrap: 'none'`, we need to manually truncate
+  let truncatedTitle = titleText;
+  let textMetrics = ctx.measureText(truncatedTitle);
 
-    titleMaxWidth = cardWidth - padding * 2 - badgeWidth - 20; // Adjust title max width
-    titleText.width(titleMaxWidth); // Apply adjusted width to title
+  // Simple truncation if text exceeds maxWidth
+  while (textMetrics.width > titleMaxWidth && truncatedTitle.length > 3) {
+    truncatedTitle = truncatedTitle.substring(0, truncatedTitle.length - 4) + '...';
+    textMetrics = ctx.measureText(truncatedTitle);
+  }
+  ctx.fillText(truncatedTitle, padding, currentY);
 
-    const badgeRect = new Konva.Rect({
-      x: cardWidth - padding - badgeTextNode.width(),
-      y: currentY,
-      width: badgeTextNode.width(),
-      height: badgeTextNode.height(),
-      cornerRadius: 10,
-      fill: 'rgba(255, 255, 255, 1)' // White background for badge
-    });
+  const headerHeight = 24; // Assuming 24px font height is a good approximation for header height
 
-    badgeTextNode.x(cardWidth - padding - badgeTextNode.width());
-    badgeTextNode.y(currentY);
-
-    layer.add(badgeRect);
-    layer.add(badgeTextNode);
-  } else {
-    titleText.width(titleMaxWidth); 
-  } */
-
-  layer.add(titleText);
+  // No badge implementation as it was commented out in your Konva code.
+  // If you need it, we'd add similar logic here for a rectangle and text.
 
   currentY += headerHeight + 30; // Move Y cursor down
 
@@ -123,7 +170,7 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
   imageObj.crossOrigin = 'Anonymous';
   imageObj.src = data.image || '/photo.png'; // Fallback image
 
-  const loadImagePromise = new Promise<void>(imgResolve => {
+  const loadImagePromise = new Promise<void>(resolve => {
     imageObj.onload = () => {
       let imgWidth = imageObj.naturalWidth;
       let imgHeight = imageObj.naturalHeight;
@@ -143,34 +190,21 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
       const imageX = padding + (availableImageWidth - imgWidth) / 2;
       const imageY = topElementsMaxY + (availableImageHeight - imgHeight) / 2;
 
-      const imageNode = new Konva.Image({
-        x: imageX,
-        y: imageY,
-        width: imgWidth,
-        height: imgHeight,
-        image: imageObj,
-        cornerRadius: 10 // Rounded corners for the image
-      });
-      layer.add(imageNode);
-      imgResolve();
+      // Draw image (no direct cornerRadius for images in vanilla canvas,
+      // you'd need to clip the path if truly desired. For simplicity, we draw directly).
+      ctx.drawImage(imageObj, imageX, imageY, imgWidth, imgHeight);
+      resolve();
     };
 
     imageObj.onerror = () => {
       console.error('Failed to load foreground image:', imageObj.src);
       // Placeholder text on image load error
-      const placeholderText = new Konva.Text({
-        text: 'Image Error',
-        x: cardWidth / 2,
-        y: cardHeight / 2 - 50,
-        fontSize: 30,
-        fontFamily: 'Arial',
-        fill: 'gray',
-        align: 'center',
-        verticalAlign: 'middle',
-        width: cardWidth
-      });
-      layer.add(placeholderText);
-      imgResolve(); // Resolve to allow card generation to continue
+      ctx.fillStyle = 'gray';
+      ctx.font = '30px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Image Error', cardWidth / 2, cardHeight / 2 - 50);
+      resolve(); // Resolve to allow card generation to continue
     };
   });
 
@@ -185,131 +219,175 @@ export async function generateForegroundTexture(data: CardData): Promise<CanvasT
 
   const tagsY = cardHeight - padding - tagFontSize - tagPaddingY;
   data.tags.forEach(tagText => {
-    const tagLabel = new Konva.Text({
-      text: `#${tagText.toUpperCase()}`,
-      fontSize: tagFontSize,
-      fontFamily: 'Helvetica, Arial, sans-serif',
-      fill: 'white',
-      padding: tagPaddingY / 2
-    });
-    const tagShape = new Konva.Rect({
-      x: currentXForTags,
-      y: tagsY,
-      width: tagLabel.width() + tagPaddingX,
-      height: tagLabel.height() + tagPaddingY,
+    ctx.font = `${tagFontSize}px Helvetica, Arial, sans-serif`;
+    ctx.textBaseline = 'middle'; // Align text vertically in the middle of the shape
 
-      fill: 'rgba(248,250, 252, 0.15)', // White background for tags
-      cornerRadius: 999
-    });
-    layer.add(tagShape);
-    tagLabel.x(tagShape.x() + (tagShape.width() - tagLabel.width()) / 2);
-    tagLabel.y(tagShape.y() + (tagShape.height() - tagLabel.height()) / 2);
-    layer.add(tagLabel);
-    currentXForTags += tagShape.width() + tagGap;
+    const textToDraw = `#${tagText.toUpperCase()}`;
+    const textMetrics = ctx.measureText(textToDraw);
+    const tagLabelWidth = textMetrics.width;
+
+    const tagShapeWidth = tagLabelWidth + tagPaddingX;
+    const tagShapeHeight = tagFontSize + tagPaddingY;
+
+    // Draw rounded rectangle for tag shape
+    ctx.fillStyle = 'rgba(248,250, 252, 0.15)';
+    drawRoundedRect(ctx, currentXForTags, tagsY, tagShapeWidth, tagShapeHeight, tagShapeHeight / 2); // Use half height for perfect pill shape
+    ctx.fill();
+
+    // Draw tag text
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.fillText(textToDraw, currentXForTags + tagShapeWidth / 2, tagsY + tagShapeHeight / 2); // Center text in shape
+
+    currentXForTags += tagShapeWidth + tagGap;
   });
 
   // Date
-  const dateText = new Konva.Text({
-    text: data.date,
-    fontSize: 20,
-    fontFamily: 'Arial, sans-serif',
-    fill: 'rgba(255, 255, 255, 1)' // White date text
-  });
-  dateText.x(cardWidth - padding - dateText.width());
-  dateText.y(cardHeight - padding - dateText.height());
-  layer.add(dateText);
+  ctx.font = '20px Arial, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+  ctx.textAlign = 'right'; // Align text to the right
+  ctx.textBaseline = 'bottom'; // Align text to the bottom of its bounding box
+  ctx.fillText(data.date, cardWidth - padding, cardHeight - padding);
 
-  layer.draw();
-  const foregroundCanvasElement = layer.canvas._canvas;
-  const foregroundTexture = new CanvasTexture(foregroundCanvasElement);
+  const foregroundTexture = new THREE.CanvasTexture(canvas);
   foregroundTexture.needsUpdate = true;
   foregroundTexture.colorSpace = THREE.SRGBColorSpace;
 
   return foregroundTexture;
 }
 
-//Generate Background Texture
+/**
+ * Generates the background texture for a card using Canvas 2D API
+ * 
+ * This function creates a blurred, darkened version of the card's image
+ * that serves as the background layer visible during hover effects.
+ * The background provides visual depth and context while maintaining
+ * readability of the foreground content.
+ * 
+ * Processing steps:
+ * 1. Loads the same image used in the foreground
+ * 2. Scales it up for better blur coverage
+ * 3. Applies canvas blur filter
+ * 4. Adds a semi-transparent dark overlay
+ * 5. Falls back to solid color if image loading fails
+ * 
+ * @param data - Card data containing the image URL
+ * @returns Promise resolving to a Three.js CanvasTexture for background layer
+ * 
+ * @example
+ * ```typescript
+ * const backgroundTexture = await generateBackgroundTexture(cardData);
+ * // Use this texture for the background mesh with shader material
+ * ```
+ */
+export async function generateBackgroundTexture(data: CardData): Promise<THREE.CanvasTexture> {
+  const { canvas, ctx } = createCanvasContext();
 
-//This function creates the blurred background effect for your card, typically using a larger, blurred version of the main image or a solid color fallback.
-
-export async function generateBackgroundTexture(data: CardData): Promise<CanvasTexture> {
-  console.log('Background texture generated!'); // Log to confirm when it's called
-  const { layer } = createKonvaLayer();
-
-  // Background rectangle (will be covered by blurred image or fallback)
-  const backgroundRect = new Konva.Rect({
-    x: 0,
-    y: 0,
-    width: cardWidth,
-    height: cardHeight,
-    fill: 'rgba(0,0,0,0)' // Start with transparent, image/fallback will fill
-  });
-  layer.add(backgroundRect);
+  // Start with transparent background - image will fill the canvas
+  // Alternative: ctx.fillStyle = 'rgba(0,0,0,0.5)' for solid fallback
 
   const backgroundImageObj = new Image();
-  backgroundImageObj.crossOrigin = 'Anonymous';
-  backgroundImageObj.src = data.image || '/photo.png'; // Use same image for background
+  backgroundImageObj.crossOrigin = 'Anonymous'; // Enable CORS for external images
+  backgroundImageObj.src = data.image || '/photo.png'; // Use same image as foreground
 
-  const loadBackgroundImagePromise = new Promise<void>(imgResolve => {
+  const loadBackgroundImagePromise = new Promise<void>(resolve => {
     backgroundImageObj.onload = () => {
       const backgroundScale = 2.0; // Make background image larger for blur effect
       const bgImgWidth = backgroundImageObj.naturalWidth * backgroundScale;
       const bgImgHeight = backgroundImageObj.naturalHeight * backgroundScale;
 
-      const bgImageNode = new Konva.Image({
-        x: (cardWidth - bgImgWidth) / 2,
-        y: (cardHeight - bgImgHeight) / 2,
-        width: bgImgWidth,
-        height: bgImgHeight,
-        image: backgroundImageObj,
-        opacity: 0.8 // Slight opacity for a faded look
-      });
+      // Draw the image first
+      ctx.drawImage(backgroundImageObj, (cardWidth - bgImgWidth) / 2, (cardHeight - bgImgHeight) / 2, bgImgWidth, bgImgHeight);
 
-      // Apply Konva filters for blur. `cache()` is needed before applying filters.
+      // Apply blur directly on the canvas content
+      // Note: blur performance and quality can vary between browsers.
+      // For more control/consistency, you might apply blur in a shader or pre-process images.
+      ctx.filter = 'blur(10px)'; // Adjust blur radius as needed
+      ctx.drawImage(canvas, 0, 0); // Redraw the canvas content with blur
+      ctx.filter = 'none'; // Reset filter for subsequent draws
 
-      layer.add(bgImageNode);
-      imgResolve();
+      // Add a semi-transparent overlay to darken/blend the background
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'; // Dark overlay
+      ctx.fillRect(0, 0, cardWidth, cardHeight);
+
+      resolve();
     };
 
     backgroundImageObj.onerror = () => {
       console.warn('Failed to load background image:', backgroundImageObj.src);
       // Fallback to a solid color background if image fails to load
-      const fallbackRect = new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: cardWidth,
-        height: cardHeight,
-        fill: 'rgba(0,0,0,0)', // Use data.color1 as a fallback background
-        opacity: 0.5
-      });
-      layer.add(fallbackRect);
-      imgResolve();
+      // ctx.fillStyle = data.color1 || 'rgba(50,50,50,0.5)'; // Use a default dark gray if data.color1 is not present
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; // Fallback to semi-transparent black
+      ctx.fillRect(0, 0, cardWidth, cardHeight);
+      resolve();
     };
   });
 
   await loadBackgroundImagePromise; // Wait for background image to load or fail
-  layer.draw();
-  const backgroundCanvasElement = layer.canvas._canvas;
-  const backgroundTexture = new CanvasTexture(backgroundCanvasElement);
+
+  const backgroundTexture = new THREE.CanvasTexture(canvas);
   backgroundTexture.needsUpdate = true;
   backgroundTexture.colorSpace = THREE.SRGBColorSpace;
 
   return backgroundTexture;
 }
 
-//Main Card Texture Generation Function (Simplified)
+/**
+ * Helper function to draw a rounded rectangle using Canvas 2D API
+ * 
+ * Canvas doesn't have a built-in rounded rectangle method, so this
+ * function uses quadratic curves to create smooth corners. This is
+ * used for drawing the tag pill backgrounds.
+ * 
+ * @param ctx - The 2D rendering context to draw on
+ * @param x - X coordinate of the top-left corner
+ * @param y - Y coordinate of the top-left corner  
+ * @param width - Width of the rectangle
+ * @param height - Height of the rectangle
+ * @param radius - Corner radius in pixels
+ */
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
 
-//This function is now primarily used internally by the texture utility file. The conditional logic for background generation has moved to the Vue component for more dynamic control.
-
-// This function is kept for completeness if you still need a single entry point
-// that returns both, but its direct use in the component has been altered.
+/**
+ * Convenience function to generate both foreground and background textures
+ * 
+ * This function generates both texture types in parallel for efficiency.
+ * While the individual generation functions are typically used separately
+ * in the main grid system, this function can be useful for testing or
+ * simpler use cases.
+ * 
+ * @param data - Card data for texture generation
+ * @returns Promise resolving to an object with both texture types
+ * 
+ * @example
+ * ```typescript
+ * const { foreground, background } = await generateCardTextures(cardData);
+ * // Use foreground for main mesh, background for hover effect
+ * ```
+ */
 export async function generateCardTextures(data: CardData): Promise<{
-  foreground: CanvasTexture;
-  background: CanvasTexture;
+  foreground: THREE.CanvasTexture;
+  background: THREE.CanvasTexture;
 }> {
-  // This will always generate both.
-  // The conditional logic is now in the component that calls this utility.
   const [foreground, background] = await Promise.all([generateForegroundTexture(data), generateBackgroundTexture(data)]);
-
   return { foreground, background };
 }
