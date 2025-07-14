@@ -73,7 +73,7 @@ gsap.registerPlugin(InertiaPlugin);
 /**
  * Represents the data structure for a single card/tile in the grid
  */
-interface CardData {
+export interface CardData {
   /** The main title text displayed on the card */
   title: string;
   /** Badge text (currently not implemented in rendering) */
@@ -91,7 +91,7 @@ interface CardData {
 /**
  * Configuration parameters for post-processing visual effects
  */
-interface PostProcessParams {
+export interface PostProcessParams {
   /** Intensity of the barrel/pincushion distortion effect (0 = no distortion) */
   distortionIntensity?: number;
   /** Offset value for the vignette effect (higher = smaller dark area) */
@@ -103,7 +103,7 @@ interface PostProcessParams {
 /**
  * Configuration options for initializing the infinite grid
  */
-interface InfiniteGridOptions {
+export interface InfiniteGridOptions {
   /** Number of columns in each grid section (default: 3) */
   gridCols?: number;
   /** Number of rows in each grid section (default: 3) */
@@ -115,9 +115,9 @@ interface InfiniteGridOptions {
   /** Base Z position of the camera (default: 10) */
   baseCameraZ?: number;
   /** Whether to enable post-processing effects (default: true) */
-  enablePostProcessing?: boolean;
+  enablePostProcessing: boolean;
   /** Parameters for post-processing effects */
-  postProcessParams?: PostProcessParams;
+  postProcessParams: PostProcessParams;
 }
 
 /**
@@ -317,6 +317,8 @@ export class InfiniteGridClass {
   private currentHoveredTileKey: string;
   /** Whether the user is currently dragging/scrolling */
   private isDown: boolean;
+  /** Whether the scene has moved significantly during this interaction */
+  private hasMovedSignificantly: boolean;
   /** Position where the current drag started */
   private startPosition: Position2D;
   /** Scroll position when the current drag started */
@@ -340,6 +342,8 @@ export class InfiniteGridClass {
   private readonly initialBackgroundOpacity: number;
   /** Target opacity when background is hovered (1 = fully visible) */
   private readonly hoveredBackgroundOpacity: number;
+  /** Maximum movement distance in pixels before click is disabled */
+  private readonly maxClickMovement: number;
 
   /**
    * Animation Frame Management
@@ -378,7 +382,7 @@ export class InfiniteGridClass {
    * });
    * ```
    */
-  constructor(containerElement: HTMLElement, cardData: CardData[] = [], options: InfiniteGridOptions = {}) {
+  constructor(containerElement: HTMLElement, cardData: CardData[] = [], options: Partial<InfiniteGridOptions> = {}) {
     if (!containerElement) {
       console.error('InfiniteGridClass: Container element is required.');
       throw new Error('Container element is required');
@@ -396,13 +400,15 @@ export class InfiniteGridClass {
       baseCameraZ: 10,
       enablePostProcessing: true,
       postProcessParams: {
-        distortionIntensity: 0.1,
+        distortionIntensity: 0.0,
         vignetteOffset: 0.0,
         vignetteDarkness: 0.0,
         ...options.postProcessParams
       },
       ...options
     };
+
+    console.log('InfiniteGridClass initialized with options:', this.options, 'options parameter:' + options.postProcessParams);
 
     // Initialize grid properties
     this.GRID_GAP = this.options.gridGap;
@@ -437,6 +443,7 @@ export class InfiniteGridClass {
     // Initialize interaction state
     this.currentHoveredTileKey = '';
     this.isDown = false;
+    this.hasMovedSignificantly = false;
     this.startPosition = { x: 0, y: 0 };
     this.scrollPosition = { x: 0, y: 0 };
     this.scroll = {
@@ -452,6 +459,7 @@ export class InfiniteGridClass {
     this.hoverEase = 'power2.out';
     this.initialBackgroundOpacity = 0.0;
     this.hoveredBackgroundOpacity = 1.0;
+    this.maxClickMovement = 5; // pixels
 
     this.animationFrameId = null;
     this.tileGroupsData = [];
@@ -761,6 +769,7 @@ export class InfiniteGridClass {
 
     this.currentHoveredTileKey = '';
     this.isDown = true;
+    this.hasMovedSignificantly = false;
     this.scrollPosition.x = this.scroll.current.x;
     this.scrollPosition.y = this.scroll.current.y;
 
@@ -788,6 +797,16 @@ export class InfiniteGridClass {
 
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    // Check if movement is significant enough to disable click
+    const movementDistance = Math.sqrt(
+      Math.pow(clientX - this.startPosition.x, 2) +
+      Math.pow(clientY - this.startPosition.y, 2)
+    );
+
+    if (movementDistance > this.maxClickMovement) {
+      this.hasMovedSignificantly = true;
+    }
 
     const distanceX = (this.startPosition.x - clientX) * this.scroll.scale;
     const distanceY = (this.startPosition.y - clientY) * this.scroll.scale;
@@ -904,6 +923,11 @@ export class InfiniteGridClass {
     if (this.isDown || !this.renderer) return;
 
     if (e.target !== this.renderer.domElement) {
+      return;
+    }
+
+    // Only dispatch click event if the user hasn't moved significantly
+    if (this.hasMovedSignificantly) {
       return;
     }
 

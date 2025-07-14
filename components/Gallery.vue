@@ -3,53 +3,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { InfiniteGridClass } from '@/utils/InfiniteGridClass';
-
-// Define interfaces for props
-export interface CardData {
-  title: string;
-  badge: string;
-  description?: string; // Made optional since some cards might not have descriptions
-  tags: string[];
-  date: string;
-  image?: string; // Changed from imageUrl to image to match your data structure
-}
-
-interface PostProcessParameters {
-  distortionIntensity?: number; // New: single scalar for distortion control
-  vignetteOffset?: number;
-  vignetteDarkness?: number;
-}
-
-interface GridOptions {
-  gridCols?: number;
-  gridRows?: number;
-  gridGap?: number;
-  tileSize?: number;
-  baseCameraZ?: number;
-  enablePostProcessing?: boolean;
-  postProcessParams?: PostProcessParameters;
-}
+import type { InfiniteGridOptions, CardData } from '@/utils/InfiniteGridClass';
 
 interface Props {
   cardData: CardData[];
-  options?: GridOptions;
+  options?: Partial<InfiniteGridOptions>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   cardData: () => [],
-  options: () => ({
-    enablePostProcessing: true,
-    postProcessParams: {
-      distortionIntensity: 0.0, // Default to no distortion initially
-      vignetteOffset: 0.8, // Start vignette at 80% from center
-      vignetteDarkness: 1.2 // Smooth transition to darkness
-    }
-  })
+  options: () => ({})
 });
 
 const emit = defineEmits(['tileClicked']);
+
+// Define default options for the infinite grid
+const defaultOptions: InfiniteGridOptions = {
+  gridCols: 4,
+  gridRows: 4,
+  gridGap: 0,
+  tileSize: 3,
+  baseCameraZ: 10,
+  enablePostProcessing: true,
+  postProcessParams: {
+    distortionIntensity: -0.2,
+    vignetteOffset: 0.0,
+    vignetteDarkness: 0.0
+  }
+};
+
+// Merge default options with passed options
+const mergedOptions = computed(() => ({
+  ...defaultOptions,
+  ...props.options,
+  postProcessParams: {
+    ...defaultOptions.postProcessParams,
+    ...props.options?.postProcessParams
+  }
+}));
 
 const infiniteGridContainer = ref<HTMLElement | null>(null);
 let infiniteGridInstance: InfiniteGridClass | null = null;
@@ -61,7 +54,8 @@ function handleTileClicked(event: Event) {
 
 onMounted(async () => {
   if (infiniteGridContainer.value) {
-    infiniteGridInstance = new InfiniteGridClass(infiniteGridContainer.value, props.cardData, props.options);
+    console.log('Initializing InfiniteGridClass with options:', mergedOptions.value);
+    infiniteGridInstance = new InfiniteGridClass(infiniteGridContainer.value, props.cardData, mergedOptions.value);
     await infiniteGridInstance.init();
 
     infiniteGridContainer.value.addEventListener('tileClicked', handleTileClicked);
@@ -79,7 +73,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [props.cardData, props.options],
+  () => [props.cardData, mergedOptions.value],
   async ([newCardData, newOptions]) => {
     if (infiniteGridInstance) {
       infiniteGridInstance.dispose();
@@ -87,7 +81,11 @@ watch(
     }
 
     if (infiniteGridContainer.value) {
-      infiniteGridInstance = new InfiniteGridClass(infiniteGridContainer.value, newCardData as CardData[], newOptions as GridOptions);
+      infiniteGridInstance = new InfiniteGridClass(
+        infiniteGridContainer.value,
+        newCardData as CardData[],
+        newOptions as InfiniteGridOptions
+      );
       await infiniteGridInstance.init();
       infiniteGridContainer.value.addEventListener('tileClicked', handleTileClicked);
     }

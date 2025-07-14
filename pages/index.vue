@@ -6,13 +6,14 @@
         gridRows: 4,
         gridCols: 4,
         tileSize: 2.4,
-        baseCameraZ: 10
+        baseCameraZ: 10,
+        enablePostProcessing: true
       }" />
   </ClientOnly>
 </template>
 
 <script setup lang="ts">
-import type { CardData } from '~/components/Gallery.vue';
+import type { CardData } from '@/utils/InfiniteGridClass';
 
 const cardData = [
   {
