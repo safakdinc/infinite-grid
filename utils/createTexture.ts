@@ -18,9 +18,6 @@
  * - Blur effects for background textures
  * - Proper error handling for failed image loads
  * 
- * @author Your Team
- * @version 1.0.0
- * 
  * Usage:
  * ```typescript
  * import { generateForegroundTexture, generateBackgroundTexture } from './createTexture';

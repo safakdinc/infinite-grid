@@ -6,9 +6,6 @@
  * 3x3 tile group architecture to create the illusion of infinite content while
  * maintaining optimal performance.
  * 
- * @author Yazilim Panteri
- * @version 1.0.0
- * 
  * Key Features:
  * - Infinite scrolling in all directions
  * - Interactive hover effects with background blur
